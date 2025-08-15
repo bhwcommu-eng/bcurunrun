@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Dental Run! 🦷</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Anuphan&display=swap');
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+    }
+    html, body {
+      height: 100%;
+      font-family: 'Anuphan', sans-serif;
+      background: linear-gradient(to top, #ccefff, #ffffff);
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #game {
+      position: relative;
+      width: 400px;  /* กำหนดความกว้างคงที่บนคอม */
+      height: 700px; /* กำหนดความสูงคงที่ */
+      max-width: 95vw;  /* ลดขนาดอัตโนมัติบนมือถือ */
+      max-height: 95vh;
+      overflow: hidden;
+      background: #f9f9f9;
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      touch-action: none;
+    }
+    #player {
+      width: 10vw;
+      max-width: 80px;
+      height: 10vw;
+      max-height: 80px;
+      background: url('https://cdn.glitch.global/ff67146c-2de3-4d49-98d8-5071f199f7b9/%E0%B8%9F%E0%B8%B1%E0%B8%99.png?v=1750219632318') no-repeat center/contain;
+      position: absolute;
+      bottom: 4vh;
+      left: 50%;
+      transform: translateX(-50%);
+      transition: left 0.1s ease;
+      touch-action: none;
+    }
+    .item, .obstacle {
+      width: 8vw;
+      max-width: 60px;
+      height: 8vw;
+      max-height: 60px;
+      position: absolute;
+      top: -10vw;
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+    .item {
+      background-image: url('https://cdn.glitch.global/ff67146c-2de3-4d49-98d8-5071f199f7b9/%E0%B8%9F%E0%B8%B1%E0%B8%99%E0%B8%9C%E0%B8%B8.png?v=1750219912909');
+    }
+    .obstacle {
+      background-image: url('https://cdn.glitch.global/ff67146c-2de3-4d49-98d8-5071f199f7b9/%E0%B8%9F%E0%B8%B1%E0%B8%99%E0%B8%9C%E0%B8%B82.png?v=1750220128782');
+    }
+    #score, #timer {
+      position: absolute;
+      top: 10px;
+      padding: 6px 10px;
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 8px;
+      font-size: 18px;
+      user-select: none;
+      -webkit-user-select: none;
+      z-index: 100;
+    }
+    #score {
+      left: 10px;
+    }
+    #timer {
+      right: 10px;
+    }
+    #result {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 30px 40px;
+      border-radius: 12px;
+      text-align: center;
+      font-size: 18px; /* ปรับ font size ให้เล็กลง */
+      display: none;
+      user-select: none;
+      -webkit-user-select: none;
+      z-index: 200;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      max-width: 90%;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <audio id="bgm" loop>
+    <source src="https://cdn.glitch.global/ff67146c-2de3-4d49-98d8-5071f199f7b9/game-music-loop-7-145285.mp3?v=1750220605629" type="audio/mpeg" />
+  </audio>
+
+  <div id="game">
+    <div id="player" aria-label="ตัวผู้เล่น"></div>
+    <div id="score" aria-live="polite">คะแนน: 0</div>
+    <div id="timer" aria-live="polite">เวลา: 30</div>
+    <div id="result" role="alert"></div>
+  </div>
+
+  <script>
+    const game = document.getElementById('game');
+    const player = document.getElementById('player');
+    const scoreDisplay = document.getElementById('score');
+    const timerDisplay = document.getElementById('timer');
+    const resultDisplay = document.getElementById('result');
+    const bgm = document.getElementById('bgm');
+
+    let score = 0;
+    let gameOver = false;
+    let timeLeft = 30;
+
+    // player X position เริ่มตรงกลาง game container
+    let playerX = game.clientWidth / 2;
+
+    function updatePlayerPosition() {
+      const maxX = game.clientWidth - player.offsetWidth / 2;
+      const minX = player.offsetWidth / 2;
+      playerX = Math.min(maxX, Math.max(minX, playerX));
+      player.style.left = playerX + 'px';
+    }
+    updatePlayerPosition();
+
+    // เริ่มเล่นเพลงหลังคลิกเพื่อให้ browser อนุญาตเล่นเสียง (มือถือ/desktop)
+    function startBGM() {
+      if (bgm.paused) {
+        bgm.play().catch(() => {
+          // ถ้าเกิด error ไม่ต้องทำอะไร
+        });
+      }
+      document.removeEventListener('click', startBGM);
+    }
+    document.addEventListener('click', startBGM);
+
+    // ควบคุมด้วยคีย์บอร์ด
+    document.addEventListener('keydown', e => {
+      if (gameOver) return;
+      if (e.key === 'ArrowLeft') playerX -= game.clientWidth * 0.1;
+      if (e.key === 'ArrowRight') playerX += game.clientWidth * 0.1;
+      updatePlayerPosition();
+    });
+
+    // ควบคุมด้วยสัมผัส
+    let touchStartX = null;
+    let playerStartX = null;
+    player.addEventListener('touchstart', e => {
+      if (gameOver) return;
+      touchStartX = e.touches[0].clientX;
+      playerStartX = playerX;
+    }, {passive:true});
+    player.addEventListener('touchmove', e => {
+      if (gameOver) return;
+      const touchX = e.touches[0].clientX;
+      const dx = touchX - touchStartX;
+      playerX = playerStartX + dx;
+      updatePlayerPosition();
+    }, {passive:true});
+
+    function spawnItem(type) {
+      const el = document.createElement('div');
+      el.className = type;
+      const maxLeft = game.clientWidth - 50;
+      el.style.left = (Math.random() * maxLeft) + 'px';
+      game.appendChild(el);
+      return el;
+    }
+
+    function drop(el) {
+      let y = -el.offsetHeight;
+      const speed = 5 + Math.random() * 3;
+
+      const interval = setInterval(() => {
+        if (gameOver) {
+          clearInterval(interval);
+          if(el.parentElement) el.remove();
+          return;
+        }
+        y += speed;
+        el.style.top = y + 'px';
+
+        const rect1 = el.getBoundingClientRect();
+        const rect2 = player.getBoundingClientRect();
+
+        if (
+          rect1.bottom > rect2.top &&
+          rect1.top < rect2.bottom &&
+          rect1.left < rect2.right &&
+          rect1.right > rect2.left
+        ) {
+          if (el.classList.contains('item')) score++;
+          else score = Math.max(0, score - 1);
+          scoreDisplay.textContent = 'คะแนน: ' + score;
+          el.remove();
+          clearInterval(interval);
+          return;
+        }
+        if (y > game.clientHeight) {
+          el.remove();
+          clearInterval(interval);
+          return;
+        }
+      }, 20);
+    }
+
+    const itemInterval = setInterval(() => {
+      if (gameOver) return;
+      const el = spawnItem(Math.random() < 0.7 ? 'item' : 'obstacle');
+      drop(el);
+    }, 700);
+
+    const timerInterval = setInterval(() => {
+      if (timeLeft <= 0) {
+        gameOver = true;
+        clearInterval(itemInterval);
+        clearInterval(timerInterval);
+        let reward = score >= 40 ? "กล่องฟอกฟันขาวพรีเมียม" :
+          score >= 30 ? "แปรงสีฟัน" :
+          score >= 20 ? "ดินสอฟันยิ้ม" :
+          "Sticker รูปฟันปลอบใจ";
+        resultDisplay.innerHTML = `🎉 จบเกม!<br>คุณได้คะแนน: ${score}<br>รับรางวัล: ${reward}`;
+        resultDisplay.style.display = 'block';
+      } else {
+        timeLeft--;
+        timerDisplay.textContent = 'เวลา: ' + timeLeft;
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
